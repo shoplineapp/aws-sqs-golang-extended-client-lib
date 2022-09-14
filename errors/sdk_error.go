@@ -3,11 +3,11 @@ package errors
 import (
 	"fmt"
 
-	"github.com/shoplineapp/aws-sqs-golang-extended-client-lib/interfaces"
+	aws_extended_sqsiface "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/interfaces"
 )
 
 type SDKError struct {
-	interfaces.ErrorInterface
+	aws_extended_sqsiface.ErrorInterface
 	Message string
 }
 

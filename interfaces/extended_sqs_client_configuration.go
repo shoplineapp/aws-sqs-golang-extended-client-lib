@@ -1,4 +1,4 @@
-package interfaces
+package aws_extended_sqsiface
 
 import (
 	aws_s3iface "github.com/aws/aws-sdk-go/service/s3/s3iface"

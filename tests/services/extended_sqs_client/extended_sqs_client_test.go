@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/shoplineapp/aws-sqs-golang-extended-client-lib/interfaces"
+	aws_extended_sqsiface "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/interfaces"
 	extended_sqs "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/services/extended_sqs_client"
 	sqs_configs_constants "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/services/extended_sqs_client/constants"
 
@@ -28,8 +28,8 @@ import (
 type ExtendedSqsClientTestSuite struct {
 	suite.Suite
 
-	sqsClient interfaces.ExtendedSQSClientInterface
-	config    interfaces.ExtendedSQSClientConfigurationInterface
+	sqsClient aws_extended_sqsiface.ExtendedSQSClientInterface
+	config    aws_extended_sqsiface.ExtendedSQSClientConfigurationInterface
 
 	mockSqs *MockSqs
 	mockS3  *MockS3

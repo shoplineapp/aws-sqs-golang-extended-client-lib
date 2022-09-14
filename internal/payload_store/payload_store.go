@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/shoplineapp/aws-sqs-golang-extended-client-lib/interfaces"
+	aws_extended_sqsiface "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/interfaces"
 	payload_store_constants "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/internal/payload_store/constants"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -16,7 +16,7 @@ import (
 )
 
 type PayloadStore struct {
-	interfaces.PayloadStoreInterface
+	aws_extended_sqsiface.PayloadStoreInterface
 	s3           aws_s3iface.S3API
 	s3BucketName string
 }

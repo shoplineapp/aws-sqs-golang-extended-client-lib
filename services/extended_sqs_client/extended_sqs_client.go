@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/shoplineapp/aws-sqs-golang-extended-client-lib/interfaces"
+	aws_extended_sqsiface "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/interfaces"
 	"github.com/shoplineapp/aws-sqs-golang-extended-client-lib/internal/payload_store"
 	sqs_configs_constants "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/services/extended_sqs_client/constants"
 
@@ -17,10 +17,10 @@ import (
 )
 
 type ExtendedSQSClient struct {
-	interfaces.ExtendedSQSClientInterface
+	aws_extended_sqsiface.ExtendedSQSClientInterface
 	sqsClient    aws_sqsiface.SQSAPI
-	config       interfaces.ExtendedSQSClientConfigurationInterface
-	payloadStore interfaces.PayloadStoreInterface
+	config       aws_extended_sqsiface.ExtendedSQSClientConfigurationInterface
+	payloadStore aws_extended_sqsiface.PayloadStoreInterface
 }
 
 func NewExtendedSQSClient(sqs aws_sqsiface.SQSAPI, config *ExtendedSQSClientConfiguration) *ExtendedSQSClient {

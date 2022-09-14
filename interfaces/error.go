@@ -1,4 +1,4 @@
-package interfaces
+package aws_extended_sqsiface
 
 type ErrorInterface interface {
 	Code() string

@@ -1,4 +1,4 @@
-package interfaces
+package aws_extended_sqsiface
 
 import (
 	aws_sqs "github.com/aws/aws-sdk-go/service/sqs"

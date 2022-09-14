@@ -1,14 +1,14 @@
 package extended_sqs_client
 
 import (
-	"github.com/shoplineapp/aws-sqs-golang-extended-client-lib/interfaces"
+	aws_extended_sqsiface "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/interfaces"
 	sqs_configs_constants "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/services/extended_sqs_client/constants"
 
 	aws_s3iface "github.com/aws/aws-sdk-go/service/s3/s3iface"
 )
 
 type ExtendedSQSClientConfiguration struct {
-	interfaces.ExtendedSQSClientConfigurationInterface
+	aws_extended_sqsiface.ExtendedSQSClientConfigurationInterface
 	s3             aws_s3iface.S3API
 	s3BucketName   string
 	payloadSupport bool

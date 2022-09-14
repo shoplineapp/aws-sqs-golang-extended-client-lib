@@ -1,4 +1,4 @@
-package interfaces
+package aws_extended_sqsiface
 
 type PayloadStoreInterface interface {
 	StoreOriginalPayload(originalPayload string) (string, error)

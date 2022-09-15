@@ -1,4 +1,4 @@
-package extended_sqs_client
+package aws_extended_sqs_client
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 
 	aws_extended_sqsiface "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/interfaces"
 	"github.com/shoplineapp/aws-sqs-golang-extended-client-lib/internal/payload_store"
-	sqs_configs_constants "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/services/extended_sqs_client/constants"
+	sqs_configs_constants "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/services/aws_extended_sqs_client/constants"
 
 	"github.com/shoplineapp/aws-sqs-golang-extended-client-lib/errors"
 
@@ -16,24 +16,24 @@ import (
 	aws_sqsiface "github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 )
 
-type ExtendedSQSClient struct {
-	aws_extended_sqsiface.ExtendedSQSClientInterface
+type AwsExtendedSQSClient struct {
+	aws_extended_sqsiface.AwsExtendedSqsClientInterface
 	sqsClient    aws_sqsiface.SQSAPI
-	config       aws_extended_sqsiface.ExtendedSQSClientConfigurationInterface
+	config       aws_extended_sqsiface.AwsExtendedSqsClientConfigurationInterface
 	payloadStore aws_extended_sqsiface.PayloadStoreInterface
 }
 
-func NewExtendedSQSClient(sqs aws_sqsiface.SQSAPI, config *ExtendedSQSClientConfiguration) *ExtendedSQSClient {
+func NewExtendedSQSClient(sqs aws_sqsiface.SQSAPI, config *AwsExtendedSQSClientConfiguration) *AwsExtendedSQSClient {
 	payloadStore := payload_store.NewPayloadStore(config.s3, config.s3BucketName)
 
-	return &ExtendedSQSClient{
+	return &AwsExtendedSQSClient{
 		sqsClient:    sqs,
 		config:       config,
 		payloadStore: payloadStore,
 	}
 }
 
-func (c *ExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aws_sqs.SendMessageOutput, error) {
+func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aws_sqs.SendMessageOutput, error) {
 	if input == nil {
 		errorMessage := "sendMessageRequest cannot be null."
 
@@ -70,7 +70,7 @@ func (c *ExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aws_s
 	return c.sqsClient.SendMessage(sqsInput)
 }
 
-func (c *ExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput) (*aws_sqs.ReceiveMessageOutput, error) {
+func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput) (*aws_sqs.ReceiveMessageOutput, error) {
 	if input == nil {
 		errorMessage := "receiveMessageRequest cannot be null."
 
@@ -140,7 +140,7 @@ func (c *ExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput) (
 	return output, nil
 }
 
-func (c *ExtendedSQSClient) DeleteMessage(input *aws_sqs.DeleteMessageInput) (*aws_sqs.DeleteMessageOutput, error) {
+func (c *AwsExtendedSQSClient) DeleteMessage(input *aws_sqs.DeleteMessageInput) (*aws_sqs.DeleteMessageOutput, error) {
 	if input == nil {
 		errorMessage := "deleteMessageRequest cannot be null."
 
@@ -178,7 +178,7 @@ func (c *ExtendedSQSClient) DeleteMessage(input *aws_sqs.DeleteMessageInput) (*a
 	return c.sqsClient.DeleteMessage(modifiedInput)
 }
 
-func (c *ExtendedSQSClient) checkMessageAttributes(attributes map[string]*aws_sqs.MessageAttributeValue) error {
+func (c *AwsExtendedSQSClient) checkMessageAttributes(attributes map[string]*aws_sqs.MessageAttributeValue) error {
 	attributeSize := getMsgAttributesSize(attributes)
 	sizeThreshold := c.config.GetPayloadSizeThreshold()
 	if attributeSize > sizeThreshold {
@@ -204,7 +204,7 @@ func (c *ExtendedSQSClient) checkMessageAttributes(attributes map[string]*aws_sq
 	return nil
 }
 
-func (c *ExtendedSQSClient) isLarge(input *aws_sqs.SendMessageInput) bool {
+func (c *AwsExtendedSQSClient) isLarge(input *aws_sqs.SendMessageInput) bool {
 	attributeSize := getMsgAttributesSize(input.MessageAttributes)
 	bodySize := len(*input.MessageBody)
 
@@ -213,7 +213,7 @@ func (c *ExtendedSQSClient) isLarge(input *aws_sqs.SendMessageInput) bool {
 	return totalSize > c.config.GetPayloadSizeThreshold()
 }
 
-func (c *ExtendedSQSClient) storeMessageInS3(input *aws_sqs.SendMessageInput) (*aws_sqs.SendMessageInput, error) {
+func (c *AwsExtendedSQSClient) storeMessageInS3(input *aws_sqs.SendMessageInput) (*aws_sqs.SendMessageInput, error) {
 	messageBodySize := len(*input.MessageBody)
 
 	updatedInput := &aws_sqs.SendMessageInput{}
@@ -240,7 +240,7 @@ func (c *ExtendedSQSClient) storeMessageInS3(input *aws_sqs.SendMessageInput) (*
 	return updatedInput, nil
 }
 
-func (c *ExtendedSQSClient) embedS3PointerInReceiptHandle(receiptHandle *string, messagePointer *string) (*string, error) {
+func (c *AwsExtendedSQSClient) embedS3PointerInReceiptHandle(receiptHandle *string, messagePointer *string) (*string, error) {
 	s3Pointer, err := payload_store.FromJson(*messagePointer)
 	if err != nil {
 		return nil, err

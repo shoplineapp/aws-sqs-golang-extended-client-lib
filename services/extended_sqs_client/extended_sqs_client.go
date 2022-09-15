@@ -112,9 +112,7 @@ func (c *ExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput) (
 		messageAttributes := message.MessageAttributes
 		largePayloadAttributeName := getReservedAttributeNameIfPresent(messageAttributes)
 		if largePayloadAttributeName != nil {
-			messagePointer := strings.Replace(*message.Body, "com.amazon.sqs.javamessaging.MessageS3Pointer", "software.amazon.payloadoffloading.PayloadS3Pointer", 1)
-
-			originalPayload, err := c.payloadStore.GetOriginalPayload(messagePointer)
+			originalPayload, err := c.payloadStore.GetOriginalPayload(*message.Body)
 			if err != nil {
 				return nil, err
 			}
@@ -127,7 +125,7 @@ func (c *ExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput) (
 			delete(modifiedMessageAttributes, sqs_configs_constants.LEGACY_RESERVED_ATTRIBUTE_NAME)
 			modifiedMessage.MessageAttributes = modifiedMessageAttributes
 
-			modifiedReceiptHandle, err := c.embedS3PointerInReceiptHandle(message.ReceiptHandle, &messagePointer)
+			modifiedReceiptHandle, err := c.embedS3PointerInReceiptHandle(message.ReceiptHandle, message.Body)
 			if err != nil {
 				return nil, err
 			}

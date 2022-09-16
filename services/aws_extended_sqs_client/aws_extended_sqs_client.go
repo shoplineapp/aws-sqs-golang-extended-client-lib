@@ -34,9 +34,8 @@ func NewExtendedSQSClient(sqs aws_sqsiface.SQSAPI, config *AwsExtendedSQSClientC
 
 func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aws_sqs.SendMessageOutput, error) {
 	if input == nil {
-		errorMessage := "sendMessageRequest cannot be null."
-
-		return nil, errors.SDKError{Message: errorMessage}
+		// let parent handle the error
+		return c.SQSAPI.SendMessage(input)
 	}
 
 	if !c.config.IsPayloadSupportEnabled() {
@@ -44,13 +43,12 @@ func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aw
 	}
 
 	if input.MessageBody == nil {
-		errorMessage := "messageBody cannot be null or empty."
-
-		return nil, errors.SDKError{Message: errorMessage}
+		// let parent handle the error
+		return c.SQSAPI.SendMessage(input)
 	}
 
 	if err := c.checkMessageAttributes(input.MessageAttributes); err != nil {
-		return nil, err
+		return &aws_sqs.SendMessageOutput{}, err
 	}
 
 	var sqsInput *aws_sqs.SendMessageInput
@@ -60,7 +58,7 @@ func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aw
 		sqsInput, err = c.storeMessageInS3(input)
 
 		if err != nil {
-			return nil, err
+			return &aws_sqs.SendMessageOutput{}, err
 		}
 	} else {
 		sqsInput = input
@@ -71,9 +69,8 @@ func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aw
 
 func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput) (*aws_sqs.ReceiveMessageOutput, error) {
 	if input == nil {
-		errorMessage := "receiveMessageRequest cannot be null."
-
-		return nil, errors.SDKError{Message: errorMessage}
+		// let parent handle the error
+		return c.SQSAPI.ReceiveMessage(input)
 	}
 
 	if !c.config.IsPayloadSupportEnabled() {
@@ -98,7 +95,7 @@ func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput
 
 	output, err := c.SQSAPI.ReceiveMessage(updatedInput)
 	if err != nil {
-		return nil, err
+		return output, err
 	}
 
 	messages := output.Messages
@@ -113,7 +110,7 @@ func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput
 		if largePayloadAttributeName != nil {
 			originalPayload, err := c.payloadStore.GetOriginalPayload(*message.Body)
 			if err != nil {
-				return nil, err
+				return &aws_sqs.ReceiveMessageOutput{}, err
 			}
 
 			modifiedMessage.Body = &originalPayload
@@ -126,7 +123,7 @@ func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput
 
 			modifiedReceiptHandle, err := c.embedS3PointerInReceiptHandle(message.ReceiptHandle, message.Body)
 			if err != nil {
-				return nil, err
+				return &aws_sqs.ReceiveMessageOutput{}, err
 			}
 
 			modifiedMessage.ReceiptHandle = modifiedReceiptHandle
@@ -141,9 +138,8 @@ func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput
 
 func (c *AwsExtendedSQSClient) DeleteMessage(input *aws_sqs.DeleteMessageInput) (*aws_sqs.DeleteMessageOutput, error) {
 	if input == nil {
-		errorMessage := "deleteMessageRequest cannot be null."
-
-		return nil, errors.SDKError{Message: errorMessage}
+		// let parent handle the error
+		return c.SQSAPI.DeleteMessage(input)
 	}
 
 	if !c.config.IsPayloadSupportEnabled() {
@@ -153,6 +149,11 @@ func (c *AwsExtendedSQSClient) DeleteMessage(input *aws_sqs.DeleteMessageInput) 
 	receiptHandle := input.ReceiptHandle
 	origReceiptHandle := receiptHandle
 
+	if origReceiptHandle == nil {
+		// let parent handle the error
+		return c.SQSAPI.DeleteMessage(input)
+	}
+
 	if isS3ReceiptHandle(*receiptHandle) {
 		handle := getOrigReceiptHandle(*receiptHandle)
 		origReceiptHandle = &handle
@@ -160,11 +161,11 @@ func (c *AwsExtendedSQSClient) DeleteMessage(input *aws_sqs.DeleteMessageInput) 
 		if c.config.DoesCleanupS3Payload() {
 			messagePointer, err := getMessagePointerFromModifiedReceiptHandle(*receiptHandle)
 			if err != nil {
-				return nil, err
+				return &aws_sqs.DeleteMessageOutput{}, err
 			}
 
 			if err := c.payloadStore.DeleteOriginalPayload(messagePointer); err != nil {
-				return nil, err
+				return &aws_sqs.DeleteMessageOutput{}, err
 			}
 		}
 	}

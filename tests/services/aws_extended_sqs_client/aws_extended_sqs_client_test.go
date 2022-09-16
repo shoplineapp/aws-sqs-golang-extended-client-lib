@@ -152,6 +152,11 @@ func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_SendMessage_Failed_S
 }
 
 func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_SendMessage_Failed_Input_Empty() {
+	s.mockSqs.On("SendMessage", mock.Anything).Return(
+		&aws_sqs.SendMessageOutput{},
+		awserr.New("InvalidParameter", "missing required field, SendMessageInput.MessageBody.", nil),
+	).Once()
+
 	_, err := s.sqsClient.SendMessage(nil)
 
 	s.mockSqs.AssertExpectations(s.T())
@@ -161,6 +166,11 @@ func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_SendMessage_Failed_I
 }
 
 func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_SendMessage_Failed_Message_Body_Empty() {
+	s.mockSqs.On("SendMessage", mock.Anything).Return(
+		&aws_sqs.SendMessageOutput{},
+		awserr.New("InvalidParameter", "missing required field, SendMessageInput.MessageBody.", nil),
+	).Once()
+
 	_, err := s.sqsClient.SendMessage(&aws_sqs.SendMessageInput{
 		MessageBody: nil,
 	})
@@ -307,6 +317,11 @@ func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_ReceiveMessage_Succe
 }
 
 func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_ReceiveMessage_Failed_Input_Empty() {
+	s.mockSqs.On("ReceiveMessage", mock.Anything).Return(
+		&aws_sqs.ReceiveMessageOutput{},
+		awserr.New("InvalidParameter", "missing required field, ReceiveMessageInput.QueueUrl", nil),
+	).Once()
+
 	_, err := s.sqsClient.ReceiveMessage(nil)
 
 	s.mockSqs.AssertExpectations(s.T())
@@ -369,7 +384,28 @@ func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_DeleteMessage_Succes
 }
 
 func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_DeleteMessage_Failed_Input_Empty() {
+	s.mockSqs.On("DeleteMessage", mock.Anything).Return(
+		&aws_sqs.DeleteMessageOutput{},
+		awserr.New("InvalidParameter", "missing required field, DeleteMessageInput.ReceiptHandle", nil),
+	).Once()
+
 	_, err := s.sqsClient.DeleteMessage(nil)
+
+	s.mockSqs.AssertExpectations(s.T())
+	s.mockS3.AssertExpectations(s.T())
+
+	assert.NotNil(s.T(), err)
+}
+
+func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_DeleteMessage_Failed_ReceiptHandle_Empty() {
+	s.mockSqs.On("DeleteMessage", mock.Anything).Return(
+		&aws_sqs.DeleteMessageOutput{},
+		awserr.New("InvalidParameter", "missing required field, DeleteMessageInput.ReceiptHandle", nil),
+	).Once()
+
+	_, err := s.sqsClient.DeleteMessage(&aws_sqs.DeleteMessageInput{
+		ReceiptHandle: nil,
+	})
 
 	s.mockSqs.AssertExpectations(s.T())
 	s.mockS3.AssertExpectations(s.T())

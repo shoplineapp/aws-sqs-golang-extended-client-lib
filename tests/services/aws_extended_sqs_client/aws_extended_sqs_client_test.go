@@ -18,6 +18,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	aws_s3 "github.com/aws/aws-sdk-go/service/s3"
 	aws_sqs "github.com/aws/aws-sdk-go/service/sqs"
+	aws_sqsiface "github.com/aws/aws-sdk-go/service/sqs/sqsiface"
+
 	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
@@ -28,7 +30,7 @@ import (
 type ExtendedSqsClientTestSuite struct {
 	suite.Suite
 
-	sqsClient aws_extended_sqsiface.AwsExtendedSqsClientInterface
+	sqsClient aws_sqsiface.SQSAPI
 	config    aws_extended_sqsiface.AwsExtendedSqsClientConfigurationInterface
 
 	mockSqs *MockSqs

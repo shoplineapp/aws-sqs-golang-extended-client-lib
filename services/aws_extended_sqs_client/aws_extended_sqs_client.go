@@ -17,8 +17,7 @@ import (
 )
 
 type AwsExtendedSQSClient struct {
-	aws_extended_sqsiface.AwsExtendedSqsClientInterface
-	sqsClient    aws_sqsiface.SQSAPI
+	aws_sqsiface.SQSAPI
 	config       aws_extended_sqsiface.AwsExtendedSqsClientConfigurationInterface
 	payloadStore aws_extended_sqsiface.PayloadStoreInterface
 }
@@ -27,7 +26,7 @@ func NewExtendedSQSClient(sqs aws_sqsiface.SQSAPI, config *AwsExtendedSQSClientC
 	payloadStore := payload_store.NewPayloadStore(config.s3, config.s3BucketName)
 
 	return &AwsExtendedSQSClient{
-		sqsClient:    sqs,
+		SQSAPI:       sqs,
 		config:       config,
 		payloadStore: payloadStore,
 	}
@@ -41,7 +40,7 @@ func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aw
 	}
 
 	if !c.config.IsPayloadSupportEnabled() {
-		return c.sqsClient.SendMessage(input)
+		return c.SQSAPI.SendMessage(input)
 	}
 
 	if input.MessageBody == nil {
@@ -67,7 +66,7 @@ func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aw
 		sqsInput = input
 	}
 
-	return c.sqsClient.SendMessage(sqsInput)
+	return c.SQSAPI.SendMessage(sqsInput)
 }
 
 func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput) (*aws_sqs.ReceiveMessageOutput, error) {
@@ -78,7 +77,7 @@ func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput
 	}
 
 	if !c.config.IsPayloadSupportEnabled() {
-		return c.sqsClient.ReceiveMessage(input)
+		return c.SQSAPI.ReceiveMessage(input)
 	}
 
 	reservdAttributeName := sqs_configs_constants.RESERVED_ATTRIBUTE_NAME
@@ -97,7 +96,7 @@ func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput
 	*updatedInput = *input
 	updatedInput.MessageAttributeNames = updatedMessageAttributeNames
 
-	output, err := c.sqsClient.ReceiveMessage(updatedInput)
+	output, err := c.SQSAPI.ReceiveMessage(updatedInput)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +147,7 @@ func (c *AwsExtendedSQSClient) DeleteMessage(input *aws_sqs.DeleteMessageInput) 
 	}
 
 	if !c.config.IsPayloadSupportEnabled() {
-		return c.sqsClient.DeleteMessage(input)
+		return c.SQSAPI.DeleteMessage(input)
 	}
 
 	receiptHandle := input.ReceiptHandle
@@ -175,7 +174,7 @@ func (c *AwsExtendedSQSClient) DeleteMessage(input *aws_sqs.DeleteMessageInput) 
 
 	modifiedInput.ReceiptHandle = origReceiptHandle
 
-	return c.sqsClient.DeleteMessage(modifiedInput)
+	return c.SQSAPI.DeleteMessage(modifiedInput)
 }
 
 func (c *AwsExtendedSQSClient) checkMessageAttributes(attributes map[string]*aws_sqs.MessageAttributeValue) error {

@@ -43,10 +43,10 @@ func NewExtendedSQSClient(sqs aws_sqsiface.SQSAPI, config *AwsExtendedSQSClientC
 }
 
 func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aws_sqs.SendMessageOutput, error) {
-	logger := c.logger.WithField("trace_id", "unknown")
+	logger := c.logger.WithField("method", "SendMessage")
 
 	if input == nil {
-		logger.Infoln("Handled by original sqs sdk")
+		logger.WithField("uploaded_to_s3", "false").Infoln("Handled by original sqs sdk")
 
 		// let parent handle the error
 		return c.SQSAPI.SendMessage(input)
@@ -56,13 +56,13 @@ func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aw
 	ctx := context.WithValue(context.Background(), loggerKey, logger)
 
 	if !c.config.IsPayloadSupportEnabled() {
-		logger.Infoln("Handled by original sqs sdk")
+		logger.WithField("uploaded_to_s3", "false").Infoln("Handled by original sqs sdk")
 
 		return c.SQSAPI.SendMessage(input)
 	}
 
 	if input.MessageBody == nil {
-		logger.Infoln("Handled by original sqs sdk")
+		logger.WithField("uploaded_to_s3", "false").Infoln("Handled by original sqs sdk")
 
 		// let parent handle the error
 		return c.SQSAPI.SendMessage(input)
@@ -95,7 +95,7 @@ func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aw
 }
 
 func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput) (*aws_sqs.ReceiveMessageOutput, error) {
-	logger := c.logger.WithField("trace_id", "unknown")
+	logger := c.logger.WithField("method", "ReceiveMessage")
 
 	if input == nil {
 		logger.Infoln("Handled by original sqs sdk")
@@ -182,7 +182,7 @@ func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput
 }
 
 func (c *AwsExtendedSQSClient) DeleteMessage(input *aws_sqs.DeleteMessageInput) (*aws_sqs.DeleteMessageOutput, error) {
-	logger := c.logger.WithField("trace_id", "unknown")
+	logger := c.logger.WithField("method", "DeleteMessage")
 
 	if input == nil {
 		logger.Infoln("Handled by original sqs sdk")

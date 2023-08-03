@@ -422,7 +422,7 @@ func copyMessageAttributes(attributes map[string]*aws_sqs.MessageAttributeValue)
 func getLogger(ctx context.Context) logrus.FieldLogger {
 	defaultLogger := logrus.WithField("trace_id", "unknown")
 
-	if logger, ok := ctx.Value("logger").(logrus.FieldLogger); ok {
+	if logger, ok := ctx.Value(loggerKey).(logrus.FieldLogger); ok {
 		return logger
 	}
 

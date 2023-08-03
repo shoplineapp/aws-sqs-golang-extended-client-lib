@@ -1,7 +1,6 @@
 package aws_extended_sqs_client
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -53,7 +52,6 @@ func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aw
 	}
 
 	logger = logger.WithFields(c.getLoggingFields(input.MessageAttributes))
-	ctx := context.WithValue(context.Background(), loggerKey, logger)
 
 	if !c.config.IsPayloadSupportEnabled() {
 		logger.WithField("uploaded_to_s3", "false").Infoln("Handled by original sqs sdk")
@@ -75,7 +73,7 @@ func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aw
 
 	var sqsInput *aws_sqs.SendMessageInput
 
-	if c.config.IsAlwaysThroughS3() || c.isLarge(ctx, input) {
+	if c.config.IsAlwaysThroughS3() || c.isLarge(input, logger) {
 		var err error
 		sqsInput, err = c.storeMessageInS3(input)
 
@@ -269,13 +267,12 @@ func (c *AwsExtendedSQSClient) checkMessageAttributes(attributes map[string]*aws
 	return nil
 }
 
-func (c *AwsExtendedSQSClient) isLarge(ctx context.Context, input *aws_sqs.SendMessageInput) bool {
+func (c *AwsExtendedSQSClient) isLarge(input *aws_sqs.SendMessageInput, logger logrus.FieldLogger) bool {
 	attributeSize := getMsgAttributesSize(input.MessageAttributes)
 	bodySize := len(*input.MessageBody)
 
 	totalSize := attributeSize + bodySize
 
-	logger := getLogger(ctx)
 	logger.WithField("message_size", strconv.Itoa(totalSize)).Infoln("Calculated payload size")
 
 	return totalSize > c.config.GetPayloadSizeThreshold()
@@ -417,14 +414,4 @@ func copyMessageAttributes(attributes map[string]*aws_sqs.MessageAttributeValue)
 	}
 
 	return newMessageAttributes
-}
-
-func getLogger(ctx context.Context) logrus.FieldLogger {
-	defaultLogger := logrus.WithField("trace_id", "unknown")
-
-	if logger, ok := ctx.Value(loggerKey).(logrus.FieldLogger); ok {
-		return logger
-	}
-
-	return defaultLogger
 }

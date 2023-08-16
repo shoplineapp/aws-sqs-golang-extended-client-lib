@@ -25,23 +25,20 @@ type AwsExtendedSQSClient struct {
 }
 
 type awsExtendedSQSClientOptions struct {
-	logger       logrus.FieldLogger
-	logAttrNames []string
+	logger logrus.FieldLogger
 }
 
 type AwsExtendedSQSClientOption func(*awsExtendedSQSClientOptions)
 
 func newClientOptions() *awsExtendedSQSClientOptions {
 	return &awsExtendedSQSClientOptions{
-		logger:       logrus.New(),
-		logAttrNames: []string{},
+		logger: logrus.New(),
 	}
 }
 
-func WithLogger(logger logrus.FieldLogger, logAttrNames []string) AwsExtendedSQSClientOption {
+func WithLogger(logger logrus.FieldLogger) AwsExtendedSQSClientOption {
 	return func(opts *awsExtendedSQSClientOptions) {
 		opts.logger = logger
-		opts.logAttrNames = logAttrNames
 	}
 }
 
@@ -349,9 +346,9 @@ func (c *AwsExtendedSQSClient) getLoggingFields(attributes map[string]*aws_sqs.M
 		return fields
 	}
 
-	for _, fieldName := range c.opts.logAttrNames {
-		if field, ok := attributes[fieldName]; ok && field != nil && field.StringValue != nil {
-			fields[fieldName] = *field.StringValue
+	for attributeName, value := range attributes {
+		if value != nil && value.StringValue != nil {
+			fields[attributeName] = *value.StringValue
 		}
 	}
 

@@ -10,7 +10,6 @@ import (
 	aws_extended_sqsiface "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/interfaces"
 	"github.com/shoplineapp/aws-sqs-golang-extended-client-lib/services/aws_extended_sqs_client"
 	sqs_configs_constants "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/services/aws_extended_sqs_client/constants"
-	"github.com/sirupsen/logrus"
 
 	. "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/tests/internal/payload_store/mock"
 	. "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/tests/services/aws_extended_sqs_client/mock"
@@ -33,7 +32,6 @@ type ExtendedSqsClientTestSuite struct {
 
 	sqsClient aws_sqsiface.SQSAPI
 	config    aws_extended_sqsiface.AwsExtendedSqsClientConfigurationInterface
-	logger    *logrus.Logger
 
 	mockSqs *MockSqs
 	mockS3  *MockS3
@@ -61,9 +59,8 @@ func (suite *ExtendedSqsClientTestSuite) SetupTest() {
 	config.WithPayloadSupportEnabled(suite.mockS3, suite.S3_BUCKET_NAME)
 
 	suite.config = config
-	suite.logger = logrus.New()
 
-	suite.sqsClient = aws_extended_sqs_client.NewExtendedSQSClient(suite.mockSqs, config, suite.logger, []string{})
+	suite.sqsClient = aws_extended_sqs_client.NewExtendedSQSClient(suite.mockSqs, config)
 }
 
 func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_SendMessage_Success_Large_Payload() {

@@ -2,7 +2,7 @@ package tests
 
 import (
 	"fmt"
-	"io"
+	"io/ioutil"
 	"strconv"
 	"strings"
 	"testing"
@@ -259,7 +259,7 @@ func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_ReceiveMessage_Succe
 		Messages: messages,
 	}, nil).Once()
 	s.mockS3.On("GetObjectWithContext", mock.Anything, mock.Anything).Return(&aws_s3.GetObjectOutput{
-		Body: io.NopCloser(strings.NewReader(s.LARGE_BODY)),
+		Body: ioutil.NopCloser(strings.NewReader(s.LARGE_BODY)),
 	}, nil).Once()
 
 	output, err := s.sqsClient.ReceiveMessage(&aws_sqs.ReceiveMessageInput{

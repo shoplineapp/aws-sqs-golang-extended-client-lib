@@ -8,6 +8,7 @@ import (
 	aws_extended_sqsiface "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/interfaces"
 	"github.com/shoplineapp/aws-sqs-golang-extended-client-lib/internal/payload_store"
 	sqs_configs_constants "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/services/aws_extended_sqs_client/constants"
+	"github.com/sirupsen/logrus"
 
 	"github.com/shoplineapp/aws-sqs-golang-extended-client-lib/errors"
 
@@ -20,47 +21,89 @@ type AwsExtendedSQSClient struct {
 	aws_sqsiface.SQSAPI
 	config       aws_extended_sqsiface.AwsExtendedSqsClientConfigurationInterface
 	payloadStore aws_extended_sqsiface.PayloadStoreInterface
+	opts         *awsExtendedSQSClientOptions
 }
 
-func NewExtendedSQSClient(sqs aws_sqsiface.SQSAPI, config *AwsExtendedSQSClientConfiguration) *AwsExtendedSQSClient {
-	payloadStore := payload_store.NewPayloadStore(config.s3, config.s3BucketName)
+type awsExtendedSQSClientOptions struct {
+	logger logrus.FieldLogger
+}
 
-	return &AwsExtendedSQSClient{
-		SQSAPI:       sqs,
-		config:       config,
-		payloadStore: payloadStore,
+type AwsExtendedSQSClientOption func(*awsExtendedSQSClientOptions)
+
+func newClientOptions() *awsExtendedSQSClientOptions {
+	return &awsExtendedSQSClientOptions{
+		logger: logrus.New(),
 	}
 }
 
+func WithLogger(logger logrus.FieldLogger) AwsExtendedSQSClientOption {
+	return func(opts *awsExtendedSQSClientOptions) {
+		opts.logger = logger
+	}
+}
+
+func NewExtendedSQSClient(sqs aws_sqsiface.SQSAPI, config *AwsExtendedSQSClientConfiguration, opts ...AwsExtendedSQSClientOption) *AwsExtendedSQSClient {
+	payloadStore := payload_store.NewPayloadStore(config.s3, config.s3BucketName)
+
+	client := &AwsExtendedSQSClient{
+		SQSAPI:       sqs,
+		config:       config,
+		payloadStore: payloadStore,
+		opts:         newClientOptions(),
+	}
+
+	for _, opt := range opts {
+		opt(client.opts)
+	}
+
+	return client
+}
+
 func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aws_sqs.SendMessageOutput, error) {
+	logger := c.opts.logger.WithField("method", "SendMessage")
+
 	if input == nil {
+		logger.WithField("uploaded_to_s3", "false").Infoln("Handled by original sqs sdk")
+
 		// let parent handle the error
 		return c.SQSAPI.SendMessage(input)
 	}
 
+	logger = logger.WithFields(c.getLoggingFields(input.MessageAttributes))
+
 	if !c.config.IsPayloadSupportEnabled() {
+		logger.WithField("uploaded_to_s3", "false").Infoln("Handled by original sqs sdk")
+
 		return c.SQSAPI.SendMessage(input)
 	}
 
 	if input.MessageBody == nil {
+		logger.WithField("uploaded_to_s3", "false").Infoln("Handled by original sqs sdk")
+
 		// let parent handle the error
 		return c.SQSAPI.SendMessage(input)
 	}
 
 	if err := c.checkMessageAttributes(input.MessageAttributes); err != nil {
+		logger.WithField("method", "checkMessageAttributes").Errorf("Error: %+v\n", err)
 		return &aws_sqs.SendMessageOutput{}, err
 	}
 
 	var sqsInput *aws_sqs.SendMessageInput
 
-	if c.config.IsAlwaysThroughS3() || c.isLarge(input) {
+	if c.config.IsAlwaysThroughS3() || c.isLarge(input, logger) {
 		var err error
 		sqsInput, err = c.storeMessageInS3(input)
 
 		if err != nil {
+			logger.WithField("method", "storeMessageInS3").Errorf("Error: %+v\n", err)
 			return &aws_sqs.SendMessageOutput{}, err
 		}
+
+		logger.WithField("uploaded_to_s3", "true").Infoln("Uploaded to s3")
 	} else {
+		logger.WithField("uploaded_to_s3", "false").Infoln("Handled by original sqs sdk")
+
 		sqsInput = input
 	}
 
@@ -68,12 +111,18 @@ func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aw
 }
 
 func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput) (*aws_sqs.ReceiveMessageOutput, error) {
+	logger := c.opts.logger.WithField("method", "ReceiveMessage")
+
 	if input == nil {
+		logger.Infoln("Handled by original sqs sdk")
+
 		// let parent handle the error
 		return c.SQSAPI.ReceiveMessage(input)
 	}
 
 	if !c.config.IsPayloadSupportEnabled() {
+		logger.Infoln("Handled by original sqs sdk")
+
 		return c.SQSAPI.ReceiveMessage(input)
 	}
 
@@ -95,6 +144,8 @@ func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput
 
 	output, err := c.SQSAPI.ReceiveMessage(updatedInput)
 	if err != nil {
+		logger.WithField("method", "ReceiveMessage").Errorf("Error: %+v\n", err)
+
 		return output, err
 	}
 
@@ -108,8 +159,14 @@ func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput
 		messageAttributes := message.MessageAttributes
 		largePayloadAttributeName := getReservedAttributeNameIfPresent(messageAttributes)
 		if largePayloadAttributeName != nil {
+			loggerWithAttrs := c.opts.logger.WithFields(c.getLoggingFields(messageAttributes))
+
+			loggerWithAttrs.Infoln("Getting payload from s3")
+
 			originalPayload, err := c.payloadStore.GetOriginalPayload(*message.Body)
 			if err != nil {
+				loggerWithAttrs.WithField("method", "GetOriginalPayload").Errorf("Error: %+v\n", err)
+
 				return &aws_sqs.ReceiveMessageOutput{}, err
 			}
 
@@ -123,10 +180,14 @@ func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput
 
 			modifiedReceiptHandle, err := c.embedS3PointerInReceiptHandle(message.ReceiptHandle, message.Body)
 			if err != nil {
+				loggerWithAttrs.WithField("method", "embedS3PointerInReceiptHandle").Errorf("Error: %+v\n", err)
+
 				return &aws_sqs.ReceiveMessageOutput{}, err
 			}
 
 			modifiedMessage.ReceiptHandle = modifiedReceiptHandle
+
+			loggerWithAttrs.Infoln("Finished getting payload from s3")
 		}
 
 		modifiedMessages[index] = modifiedMessage
@@ -137,12 +198,18 @@ func (c *AwsExtendedSQSClient) ReceiveMessage(input *aws_sqs.ReceiveMessageInput
 }
 
 func (c *AwsExtendedSQSClient) DeleteMessage(input *aws_sqs.DeleteMessageInput) (*aws_sqs.DeleteMessageOutput, error) {
+	logger := c.opts.logger.WithField("method", "DeleteMessage")
+
 	if input == nil {
+		logger.Infoln("Handled by original sqs sdk")
+
 		// let parent handle the error
 		return c.SQSAPI.DeleteMessage(input)
 	}
 
 	if !c.config.IsPayloadSupportEnabled() {
+		logger.Infoln("Handled by original sqs sdk")
+
 		return c.SQSAPI.DeleteMessage(input)
 	}
 
@@ -150,24 +217,38 @@ func (c *AwsExtendedSQSClient) DeleteMessage(input *aws_sqs.DeleteMessageInput) 
 	origReceiptHandle := receiptHandle
 
 	if origReceiptHandle == nil {
+		logger.Infoln("Handled by original sqs sdk")
+
 		// let parent handle the error
 		return c.SQSAPI.DeleteMessage(input)
 	}
+
+	logger = logger.WithField("receipt_handle", *input.ReceiptHandle)
 
 	if isS3ReceiptHandle(*receiptHandle) {
 		handle := getOrigReceiptHandle(*receiptHandle)
 		origReceiptHandle = &handle
 
+		logger.Infoln("Message is sent with s3 usage")
+
 		if c.config.DoesCleanupS3Payload() {
+			logger.Infoln("Deleting message in s3")
+
 			messagePointer, err := getMessagePointerFromModifiedReceiptHandle(*receiptHandle)
 			if err != nil {
+				logger.WithField("method", "getMessagePointerFromModifiedReceiptHandle").Errorf("Error: %+v\n", err)
 				return &aws_sqs.DeleteMessageOutput{}, err
 			}
 
 			if err := c.payloadStore.DeleteOriginalPayload(messagePointer); err != nil {
+				logger.WithField("method", "DeleteOriginalPayload").Errorf("Error: %+v\n", err)
 				return &aws_sqs.DeleteMessageOutput{}, err
 			}
+
+			logger.Infoln("Deleted message in s3")
 		}
+	} else {
+		logger.Infoln("Message is sent without s3")
 	}
 
 	modifiedInput := &aws_sqs.DeleteMessageInput{}
@@ -204,11 +285,13 @@ func (c *AwsExtendedSQSClient) checkMessageAttributes(attributes map[string]*aws
 	return nil
 }
 
-func (c *AwsExtendedSQSClient) isLarge(input *aws_sqs.SendMessageInput) bool {
+func (c *AwsExtendedSQSClient) isLarge(input *aws_sqs.SendMessageInput, logger logrus.FieldLogger) bool {
 	attributeSize := getMsgAttributesSize(input.MessageAttributes)
 	bodySize := len(*input.MessageBody)
 
 	totalSize := attributeSize + bodySize
+
+	logger.WithField("message_size", strconv.Itoa(totalSize)).Infoln("Calculated payload size")
 
 	return totalSize > c.config.GetPayloadSizeThreshold()
 }
@@ -254,6 +337,22 @@ func (c *AwsExtendedSQSClient) embedS3PointerInReceiptHandle(receiptHandle *stri
 		*receiptHandle
 
 	return &modifiedReceiptHandle, nil
+}
+
+func (c *AwsExtendedSQSClient) getLoggingFields(attributes map[string]*aws_sqs.MessageAttributeValue) logrus.Fields {
+	fields := logrus.Fields{}
+
+	if attributes == nil {
+		return fields
+	}
+
+	for attributeName, value := range attributes {
+		if value != nil && value.StringValue != nil {
+			fields[attributeName] = *value.StringValue
+		}
+	}
+
+	return fields
 }
 
 func getReservedAttributeNameIfPresent(attributes map[string]*aws_sqs.MessageAttributeValue) *string {

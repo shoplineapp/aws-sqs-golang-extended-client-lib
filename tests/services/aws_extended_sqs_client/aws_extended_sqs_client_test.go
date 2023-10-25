@@ -11,6 +11,8 @@ import (
 	"github.com/shoplineapp/aws-sqs-golang-extended-client-lib/services/aws_extended_sqs_client"
 	sqs_configs_constants "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/services/aws_extended_sqs_client/constants"
 
+	errors "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/errors"
+
 	. "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/tests/internal/payload_store/mock"
 	. "github.com/shoplineapp/aws-sqs-golang-extended-client-lib/tests/services/aws_extended_sqs_client/mock"
 
@@ -36,12 +38,13 @@ type ExtendedSqsClientTestSuite struct {
 	mockSqs *MockSqs
 	mockS3  *MockS3
 
-	S3_BUCKET_NAME string
-	S3_KEY         string
-	BODY           string
-	LARGE_BODY     string
-	MESSAGE_ID     string
-	RECEIPT_HANDLE string
+	S3_BUCKET_NAME   string
+	S3_KEY           string
+	BODY             string
+	LARGE_BODY       string
+	BREAK_LARGE_BODY string
+	MESSAGE_ID       string
+	RECEIPT_HANDLE   string
 }
 
 func (suite *ExtendedSqsClientTestSuite) SetupTest() {
@@ -52,11 +55,13 @@ func (suite *ExtendedSqsClientTestSuite) SetupTest() {
 	suite.S3_KEY = uuid.New().String()
 	suite.BODY = "test"
 	suite.LARGE_BODY = strings.Repeat(suite.BODY, 65537)
+	suite.BREAK_LARGE_BODY = strings.Repeat(suite.BODY, sqs_configs_constants.DEFAULT_BREAK_SEND_MESSAGE_SIZE_THRESHOLD/len(suite.BODY)+1)
 	suite.MESSAGE_ID = "test-message-id"
 	suite.RECEIPT_HANDLE = uuid.New().String()
 
 	config := aws_extended_sqs_client.NewExtendedSQSClientConfiguration()
 	config.WithPayloadSupportEnabled(suite.mockS3, suite.S3_BUCKET_NAME)
+	config.WithBreakSendSupportEnabled()
 
 	suite.config = config
 
@@ -112,6 +117,42 @@ func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_SendMessage_Success_
 
 	s.mockSqs.AssertExpectations(s.T())
 	s.mockS3.AssertExpectations(s.T())
+
+	assert.Nil(s.T(), err)
+	assert.NotNil(s.T(), output)
+	assert.Equal(s.T(), s.MESSAGE_ID, *output.MessageId)
+}
+
+func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_SendMessage_Success_Message_Body_Below_Breaking_Large() {
+	s.mockSqs.On("SendMessage", mock.Anything).Return(&aws_sqs.SendMessageOutput{
+		MessageId: &s.MESSAGE_ID,
+	}, nil).Once()
+
+	s.mockS3.On("PutObjectWithContext", mock.Anything, mock.Anything).Return(&aws_s3.PutObjectOutput{}, nil).Once()
+
+	justBelowBreakBody := strings.Repeat(s.BODY, sqs_configs_constants.DEFAULT_BREAK_SEND_MESSAGE_SIZE_THRESHOLD/len(s.BODY)-1)
+
+	output, err := s.sqsClient.SendMessage(&aws_sqs.SendMessageInput{
+		MessageBody: &justBelowBreakBody,
+	})
+
+	assert.Nil(s.T(), err)
+	assert.NotNil(s.T(), output)
+	assert.Equal(s.T(), s.MESSAGE_ID, *output.MessageId)
+}
+
+func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_SendMessage_Success_Message_Body_Below_Breaking_Large_With_Attributes() {
+	s.mockSqs.On("SendMessage", mock.Anything).Return(&aws_sqs.SendMessageOutput{
+		MessageId: &s.MESSAGE_ID,
+	}, nil).Once()
+
+	s.mockS3.On("PutObjectWithContext", mock.Anything, mock.Anything).Return(&aws_s3.PutObjectOutput{}, nil).Once()
+
+	justBelowBreakBody := strings.Repeat(s.BODY, sqs_configs_constants.DEFAULT_BREAK_SEND_MESSAGE_SIZE_THRESHOLD/len(s.BODY)-1)
+
+	output, err := s.sqsClient.SendMessage(&aws_sqs.SendMessageInput{
+		MessageBody: &justBelowBreakBody,
+	})
 
 	assert.Nil(s.T(), err)
 	assert.NotNil(s.T(), output)
@@ -242,6 +283,24 @@ func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_SendMessage_Failed_R
 	s.mockS3.AssertExpectations(s.T())
 
 	assert.NotNil(s.T(), err)
+}
+
+func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_SendMessage_Failed_Message_Body_Breaking_Large() {
+	attributes := make(map[string]*aws_sqs.MessageAttributeValue)
+
+	_, err := s.sqsClient.SendMessage(&aws_sqs.SendMessageInput{
+		MessageBody:       &s.BREAK_LARGE_BODY,
+		MessageAttributes: attributes,
+	})
+
+	s.mockSqs.AssertExpectations(s.T())
+	s.mockS3.AssertExpectations(s.T())
+
+	assert.NotNil(s.T(), err)
+
+	serr, ok := err.(errors.SDKError)
+	assert.Equal(s.T(), true, ok)
+	assert.Equal(s.T(), true, strings.Contains(serr.Message, "Message send process is breaked"))
 }
 
 func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_ReceiveMessage_Success_Large_Payload() {

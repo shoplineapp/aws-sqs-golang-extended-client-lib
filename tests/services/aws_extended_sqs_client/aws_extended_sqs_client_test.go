@@ -298,7 +298,7 @@ func (s *ExtendedSqsClientTestSuite) Test_ExtendedSqsClient_SendMessage_Failed_M
 
 	assert.NotNil(s.T(), err)
 
-	serr, ok := err.(errors.SDKError)
+	serr, ok := err.(errors.OversizeBreakError)
 	assert.Equal(s.T(), true, ok)
 	assert.Equal(s.T(), true, strings.Contains(serr.Message, "Message send process is breaked"))
 }

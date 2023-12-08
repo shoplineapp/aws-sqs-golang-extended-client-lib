@@ -310,7 +310,7 @@ func (c *AwsExtendedSQSClient) getMessageDestination(input *aws_sqs.SendMessageI
 	if c.config.IsBreakSendSupportEnabled() && bodySize > c.config.GetBreakSendPayloadSizeThreshold() {
 		errorMessage := fmt.Sprintf("Total size of message is %s, exceeds the maximum allowed. Message send process is breaked.", strconv.Itoa(totalSize))
 
-		logger.WithField("method", "getMessageDestination").Errorf("Error: %+v\n", errorMessage)
+		logger.WithFields(logrus.Fields{"method": "getMessageDestination", "message_size": strconv.Itoa(totalSize)}).Errorf("Error: %+v\n", errorMessage)
 
 		return "", errors.OversizeBreakError{Message: errorMessage, Size: totalSize}
 	} else if totalSize > c.config.GetPayloadSizeThreshold() {

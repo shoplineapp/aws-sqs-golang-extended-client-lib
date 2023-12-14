@@ -84,14 +84,15 @@ func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aw
 		return c.SQSAPI.SendMessage(input)
 	}
 
-	if err := c.checkMessageAttributes(input.MessageAttributes); err != nil {
-		logger.WithField("method", "checkMessageAttributes").Errorf("Error: %+v\n", err)
+	destination, err := c.getMessageDestination(input, logger)
+	if err != nil {
 		return &aws_sqs.SendMessageOutput{}, err
 	}
 
 	var sqsInput *aws_sqs.SendMessageInput
 
-	if c.config.IsAlwaysThroughS3() || c.isLarge(input, logger) {
+	switch destination {
+	case "s3":
 		var err error
 		sqsInput, err = c.storeMessageInS3(input)
 
@@ -101,10 +102,16 @@ func (c *AwsExtendedSQSClient) SendMessage(input *aws_sqs.SendMessageInput) (*aw
 		}
 
 		logger.WithField("uploaded_to_s3", "true").Infoln("Uploaded to s3")
-	} else {
+		break
+	case "sqs":
 		logger.WithField("uploaded_to_s3", "false").Infoln("Handled by original sqs sdk")
 
 		sqsInput = input
+		break
+	default:
+		errorMessage := "Unknown message destination"
+		logger.WithField("destination", destination).Errorln(errorMessage)
+		return &aws_sqs.SendMessageOutput{}, errors.SDKError{Message: errorMessage}
 	}
 
 	return c.SQSAPI.SendMessage(sqsInput)
@@ -259,8 +266,7 @@ func (c *AwsExtendedSQSClient) DeleteMessage(input *aws_sqs.DeleteMessageInput) 
 	return c.SQSAPI.DeleteMessage(modifiedInput)
 }
 
-func (c *AwsExtendedSQSClient) checkMessageAttributes(attributes map[string]*aws_sqs.MessageAttributeValue) error {
-	attributeSize := getMsgAttributesSize(attributes)
+func (c *AwsExtendedSQSClient) checkMessageAttributes(attributes map[string]*aws_sqs.MessageAttributeValue, attributeSize int) error {
 	sizeThreshold := c.config.GetPayloadSizeThreshold()
 	if attributeSize > sizeThreshold {
 		errorMessage := fmt.Sprintf("Total size of Message attributes is %s bytes which is larger than the threshold of %s Bytes. Consider including the payload in the message body instead of message attributes.", strconv.Itoa(attributeSize), strconv.Itoa(sizeThreshold))
@@ -285,15 +291,33 @@ func (c *AwsExtendedSQSClient) checkMessageAttributes(attributes map[string]*aws
 	return nil
 }
 
-func (c *AwsExtendedSQSClient) isLarge(input *aws_sqs.SendMessageInput, logger logrus.FieldLogger) bool {
+func (c *AwsExtendedSQSClient) getMessageDestination(input *aws_sqs.SendMessageInput, logger logrus.FieldLogger) (string, error) {
 	attributeSize := getMsgAttributesSize(input.MessageAttributes)
-	bodySize := len(*input.MessageBody)
+	if err := c.checkMessageAttributes(input.MessageAttributes, attributeSize); err != nil {
+		logger.WithField("method", "checkMessageAttributes").Errorf("Error: %+v\n", err)
+		return "", err
+	}
 
+	if c.config.IsAlwaysThroughS3() {
+		return "s3", nil
+	}
+
+	bodySize := len(*input.MessageBody)
 	totalSize := attributeSize + bodySize
 
 	logger.WithField("message_size", strconv.Itoa(totalSize)).Infoln("Calculated payload size")
 
-	return totalSize > c.config.GetPayloadSizeThreshold()
+	if c.config.IsBreakSendSupportEnabled() && bodySize > c.config.GetBreakSendPayloadSizeThreshold() {
+		errorMessage := fmt.Sprintf("Total size of message is %s, exceeds the maximum allowed. Message send process is breaked.", strconv.Itoa(totalSize))
+
+		logger.WithFields(logrus.Fields{"method": "getMessageDestination", "message_size": strconv.Itoa(totalSize)}).Errorf("Error: %+v\n", errorMessage)
+
+		return "", errors.OversizeBreakError{Message: errorMessage, Size: totalSize}
+	} else if totalSize > c.config.GetPayloadSizeThreshold() {
+		return "s3", nil
+	}
+
+	return "sqs", nil
 }
 
 func (c *AwsExtendedSQSClient) storeMessageInS3(input *aws_sqs.SendMessageInput) (*aws_sqs.SendMessageInput, error) {

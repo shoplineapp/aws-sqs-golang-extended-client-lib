@@ -16,16 +16,21 @@ type AwsExtendedSQSClientConfiguration struct {
 	payloadSizeThreshold int
 	alwaysThroughS3      bool
 	cleanupS3Payload     bool
+
+	breakSendSupport              bool
+	breakSendPayloadSizeThreshold int
 }
 
 func NewExtendedSQSClientConfiguration() *AwsExtendedSQSClientConfiguration {
 	return &AwsExtendedSQSClientConfiguration{
-		s3:                   nil,
-		s3BucketName:         "",
-		payloadSupport:       false,
-		payloadSizeThreshold: sqs_configs_constants.DEFAULT_MESSAGE_SIZE_THRESHOLD,
-		alwaysThroughS3:      false,
-		cleanupS3Payload:     true,
+		s3:                            nil,
+		s3BucketName:                  "",
+		payloadSupport:                false,
+		payloadSizeThreshold:          sqs_configs_constants.DEFAULT_MESSAGE_SIZE_THRESHOLD,
+		alwaysThroughS3:               false,
+		cleanupS3Payload:              true,
+		breakSendSupport:              false,
+		breakSendPayloadSizeThreshold: sqs_configs_constants.DEFAULT_BREAK_SEND_MESSAGE_SIZE_THRESHOLD,
 	}
 }
 
@@ -35,8 +40,16 @@ func (config *AwsExtendedSQSClientConfiguration) WithPayloadSupportEnabled(s3 aw
 	config.payloadSupport = true
 }
 
+func (config *AwsExtendedSQSClientConfiguration) WithBreakSendSupportEnabled() {
+	config.breakSendSupport = true
+}
+
 func (config *AwsExtendedSQSClientConfiguration) SetPayloadSizeThreshold(threshold int) {
 	config.payloadSizeThreshold = threshold
+}
+
+func (config *AwsExtendedSQSClientConfiguration) SetBreakSendPayloadSizeThreshold(threshold int) {
+	config.breakSendPayloadSizeThreshold = threshold
 }
 
 func (config *AwsExtendedSQSClientConfiguration) SetAlwaysThroughS3(alwaysThroughS3 bool) {
@@ -51,8 +64,16 @@ func (config *AwsExtendedSQSClientConfiguration) IsPayloadSupportEnabled() bool 
 	return config.payloadSupport
 }
 
+func (config *AwsExtendedSQSClientConfiguration) IsBreakSendSupportEnabled() bool {
+	return config.breakSendSupport
+}
+
 func (config *AwsExtendedSQSClientConfiguration) GetPayloadSizeThreshold() int {
 	return config.payloadSizeThreshold
+}
+
+func (config *AwsExtendedSQSClientConfiguration) GetBreakSendPayloadSizeThreshold() int {
+	return config.breakSendPayloadSizeThreshold
 }
 
 func (config *AwsExtendedSQSClientConfiguration) IsAlwaysThroughS3() bool {
